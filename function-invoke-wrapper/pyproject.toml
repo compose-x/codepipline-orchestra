@@ -1,0 +1,26 @@
+[tool.poetry]
+name = "codepipeline_wrapper"
+version = "0.1.0"
+description = "Lambda Function that replaces AWS ECR images in AWS CodePipeline"
+authors = ["John Preston <john@ews-network.net>"]
+license = "MPL-2.0"
+
+[tool.poetry.dependencies]
+python = "^3.7"
+compose-x-common = {extras = ["aws"], version = "^0.1.1"}
+ecs-files-composer= "^0.4.4"
+boto3 = "^1.18"
+
+[tool.poetry.dev-dependencies]
+placebo = "^0.9.0"
+pytest = "^6.2.4"
+black = "^21.7b0"
+isort = "^5.9.3"
+pytest-isort = "^2.0.0"
+tbump = "6.3.1"
+pre-commit = "^2.14.0"
+pyclean = "^2.0.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

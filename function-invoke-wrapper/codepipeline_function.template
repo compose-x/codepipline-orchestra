@@ -1,0 +1,110 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Template for Lambda Function invoked by AWS CodePipeline
+Transform:
+  - AWS::Serverless-2016-10-31
+
+Parameters:
+  ImagesPrefix:
+    Type: String
+    Default: release-
+
+  ImagesSuffix:
+    Type: String
+    Default: ""
+
+  ArtifactName:
+    Type: String
+    Description: The name of the Artifact as defined in AWS CodePipeline to look for the services config file.
+    Default: AppDefinition
+
+  ConfigFileName:
+    Type: String
+    Default: services_images.json
+    Description: The name of the file that has the services/image JSON definition
+
+  PermissionsBoundary:
+    Type: String
+    Default: "none"
+
+  FunctionName:
+    Type: String
+    Default: default
+
+  PipelineRoleName:
+    Type: String
+    Description: The IAM Role name used by your pipeline to give it lambda:Invoke permissions. Optional.
+    Default: none
+
+Conditions:
+  UsePermissionsBoundary: !Not [ !Equals [ !Ref PermissionsBoundary, "none" ] ]
+  UseFunctionName: !Not [ !Equals [ !Ref FunctionName, "default" ] ]
+  CreateIamPolicy: !Not [ !Equals [ !Ref PipelineRoleName, "none" ] ]
+
+Resources:
+
+  PipelineFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !If
+        - UseFunctionName
+        - !Ref FunctionName
+        - !Ref AWS::NoValue
+      CodeUri: layer/
+      Runtime: python3.8
+      Handler: copepipeline_wrapper.function.lambda_handler
+      Role: !GetAtt FunctionRole.Arn
+      Timeout: 60
+
+  FunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - !Sub 'lambda.${AWS::URLSuffix}'
+        Version: '2012-10-17'
+      PermissionsBoundary:
+        Fn::If:
+          - UsePermissionsBoundary
+          - Ref: PermissionsBoundary
+          - Ref: AWS::NoValue
+      Policies:
+        - PolicyName: CodePipelineAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: CDResultsAccess
+                Effect: Allow
+                Action:
+                  - codepipeline:PutJobFailureResult
+                  - codepipeline:PutJobSuccessResult
+                Resource:
+                  - "*"
+
+  PipelineAccess:
+    Type: AWS::IAM::Policy
+    Condition: CreateIamPolicy
+    Properties:
+      PolicyName: LambdaInvoke
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowInvokeFunction
+            Effect: Allow
+            Action:
+              - lambda:Invoke*
+            Resource:
+              - !GetAtt PipelineFunction.Arn
+
+Outputs:
+  FunctionName:
+    Value: !Ref PipelineFunction
+  FunctionArn:
+    Value: !GetAtt PipelineFunction.Arn
