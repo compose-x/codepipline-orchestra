@@ -1,0 +1,325 @@
+---
+# IAM Roles for cross-account CICD with CodePipeline
+
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  IAM role for CodePipeline/CodeBuild/CloudFormation to use to create resources
+Parameters:
+  CICDAccountId:
+    Type: String
+    AllowedPattern: '[\d]{12}'
+
+  KmsKeyArn:
+    Type: String
+
+  ArtifactsBucketArn:
+    Type: String
+
+  CloudformationTemplatesBucketArn:
+    Type: String
+
+  PermissionsBoundary:
+    Type: String
+    AllowedPattern: '[\x20-\x7E]+'
+    Default: none
+
+Conditions:
+  UsePermissionsBoundary: !Not [ !Equals [ !Ref PermissionsBoundary, "none" ] ]
+
+Resources:
+  CrossAccountRoleForReadOnly:
+    Type: AWS::IAM::Role
+    Properties:
+      PermissionsBoundary: !If
+        - UsePermissionsBoundary
+        - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${PermissionsBoundary}'
+        - !Ref AWS::NoValue
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/ReadOnlyAccess
+        - arn:aws:iam::aws:policy/ResourceGroupsandTagEditorReadOnlyAccess
+        - arn:aws:iam::aws:policy/IAMReadOnlyAccess
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              AWS:
+                - Fn::Sub: 'arn:${AWS::Partition}:iam::${CICDAccountId}:root'
+            Condition:
+              Bool:
+                aws:SecureTransport: true
+
+  KmsKeyAccessPolicy:
+    Type: AWS::IAM::Policy
+    DependsOn:
+      - CloudformationRole
+      - BuildRole
+      - CrossAccountRoleForPipeline
+    Properties:
+      PolicyName: 'CicdKmsKeyAccess'
+      Roles:
+        - !Ref CloudformationRole
+        - !Ref CrossAccountRoleForPipeline
+        - !Ref BuildRole
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DecryptEncryptArtifacts
+            Effect: Allow
+            Action:
+              - kms:DescribeKey
+              - kms:GenerateDataKey*
+              - kms:Encrypt
+              - kms:ReEncrypt*
+              - kms:Decrypt
+            Resource:
+              - !Ref KmsKeyArn
+
+  S3BucketsReadAccess:
+    Type: AWS::IAM::Policy
+    DependsOn:
+      - CloudformationRole
+      - BuildRole
+      - CrossAccountRoleForPipeline
+    Properties:
+      Roles:
+        - !Ref BuildRole
+        - !Ref CloudformationRole
+        - !Ref CrossAccountRoleForPipeline
+      PolicyName: S3CicdBucketsReadAccess
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowAccessToBuckets
+            Action:
+              - s3:ListBucket
+              - s3:GetBucket*
+            Effect: Allow
+            Resource:
+              - !Ref ArtifactsBucketArn
+              - !Ref CloudformationTemplatesBucketArn
+          - Sid: RWArtifactsAndTemplates
+            Action:
+              - s3:GetObject*
+              - s3:ListBucket
+              - s3:GetBucket*
+              - s3:PutObject*
+            Effect: Allow
+            Resource:
+              - Fn::Sub: '${ArtifactsBucketArn}/*'
+              - Fn::Sub: '${CloudformationTemplatesBucketArn}/*'
+
+  BuildRole:
+    # Allows both CodeBuild and Lambda to perform similar actions for pipeline activities
+    # But allows some actions ONLY in codebuild.
+    Type: AWS::IAM::Role
+    Properties:
+      PermissionsBoundary: !If
+        - UsePermissionsBoundary
+        - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${PermissionsBoundary}'
+        - !Ref AWS::NoValue
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - !Sub 'codebuild.${AWS::URLSuffix}'
+                - !Sub 'lambda.${AWS::URLSuffix}'
+      Policies:
+        - PolicyName: CodeBuildRequirements
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: EC2VpcAccess
+                Effect: Allow
+                Resource:
+                  - "*"
+                Action:
+                  - ec2:CreateNetworkInterface
+                  - ec2:DescribeDhcpOptions
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DeleteNetworkInterface
+                  - ec2:DescribeSubnets
+                  - ec2:DescribeSecurityGroups
+                  - ec2:DescribeVpcs
+                  - ec2:CreateNetworkInterfacePermission
+              - Sid: Ec2BasicReads
+                Effect: Allow
+                Resource:
+                  - '*'
+                Action:
+                  - ec2:DescribeAvailabilityZones
+                  - ec2:DescribeRegion*
+              - Sid: CloudFormationActions
+                Effect: Allow
+                Resource: '*'
+                Action:
+                  - cloudformation:Describe*
+                  - cloudformation:Get*
+                  - cloudformation:Validate*
+        - PolicyName: CodeBuildSelfAccessForAutomationTricksAndBatch
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Action:
+                  - codebuild:BatchGetBuild*
+                  - codebuild:StartBuild*
+                  - codebuild:Get*
+                  - codebuild:Describe*
+                  - codebuild:CreateReportGroup
+                  - codebuild:CreateReport
+                  - codebuild:UpdateReport
+                  - codebuild:BatchPutTestCases
+                Effect: Allow
+                Resource:
+                  - '*'
+                Condition:
+                  StringEquals:
+                    ec2:AuthorizedService: !Sub "codebuild.${AWS::URLSuffix}"
+
+  CloudformationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      PermissionsBoundary: !If
+        - UsePermissionsBoundary
+        - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${PermissionsBoundary}'
+        - !Ref AWS::NoValue
+      Policies:
+        - PolicyName: AllowCreateRole
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: AllowIamRoleCreation
+                Effect: Allow
+                Resource:
+                  - '*'
+                Action:
+                  - iam:GetRole
+                  - iam:UpdateAssumeRolePolicy
+                  - iam:ListRoleTags
+                  - iam:UntagRole
+                  - iam:TagRole
+                  - iam:PutRolePermissionsBoundary
+                  - iam:RemoveRoleFromInstanceProfile
+                  - iam:UpdateRoleDescription
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:AttachRolePolicy
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePermissionsBoundary
+                  - iam:AddRoleToInstanceProfile
+                  - iam:ListInstanceProfilesForRole
+                  - iam:PassRole
+                  - iam:CreateServiceLinkedRole
+                  - iam:DetachRolePolicy
+                  - iam:ListAttachedRolePolicies
+                  - iam:DeleteRolePolicy
+                  - iam:UpdateRole
+                  - iam:ListRolePolicies
+                  - iam:GetRolePolicy
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/PowerUserAccess
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - !Sub 'cloudformation.${AWS::URLSuffix}'
+            Condition:
+              Bool:
+                aws:SecureTransport: true
+
+  CrossAccountRoleForPipeline:
+    DependsOn:
+      - CloudformationRole
+    Type: AWS::IAM::Role
+    Properties:
+      PermissionsBoundary: !If
+        - UsePermissionsBoundary
+        - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${PermissionsBoundary}'
+        - !Ref AWS::NoValue
+      Policies:
+        - PolicyName: AccessForCloudFormation
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Action:
+                  - iam:PassRole
+                Condition:
+                  StringEqualsIfExists:
+                    iam:PassedToService:
+                      - !Sub 'cloudformation.${AWS::URLSuffix}'
+                Effect: Allow
+                Resource:
+                  - !GetAtt 'CloudformationRole.Arn'
+                Sid: AllowsPipelineToPassRoleToCfn
+              - Action:
+                  - cloudformation:CreateStack
+                  - cloudformation:DeleteStack
+                  - cloudformation:DescribeStacks
+                  - cloudformation:UpdateStack
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:DeleteChangeSet
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:SetStackPolicy
+                  - cloudformation:ValidateTemplate
+                Effect: Allow
+                Resource: '*'
+                Sid: AllowsCloudFormationAccess
+              - Sid: AllowCodeBuildAccess
+                Action:
+                  - codebuild:BatchGetBuild*
+                  - codebuild:StartBuild*
+                  - codebuild:Get*
+                  - codebuild:Describe*
+                Effect: Allow
+                Resource: '*'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              AWS:
+                - Fn::Sub: 'arn:${AWS::Partition}:iam::${CICDAccountId}:root'
+            Condition:
+              Bool:
+                aws:SecureTransport: true
+
+Outputs:
+  CrossRoleName:
+    Value: !Ref CrossAccountRoleForPipeline
+  CrossRoleArn:
+    Value: !GetAtt 'CrossAccountRoleForPipeline.Arn'
+  CrossRoleId:
+    Value: !GetAtt 'CrossAccountRoleForPipeline.RoleId'
+  CrossReadOnlyRoleName:
+    Value: !Ref CrossAccountRoleForReadOnly
+  CrossReadOnlyRoleArn:
+    Value: !GetAtt 'CrossAccountRoleForReadOnly.Arn'
+  CrossReadOnlyRoleId:
+    Value: !GetAtt 'CrossAccountRoleForReadOnly.RoleId'
+  CfnRoleName:
+    Value: !Ref CloudformationRole
+  CfnRoleArn:
+    Value: !GetAtt 'CloudformationRole.Arn'
+  CfnRoleId:
+    Value: !GetAtt 'CloudformationRole.RoleId'
+  CodebuildRoleName:
+    Value: !Ref 'BuildRole'
+  CodebuildRoleArn:
+    Value: !GetAtt 'BuildRole.Arn'
+  CodebuildRoleRoleId:
+    Value: !GetAtt 'BuildRole.RoleId'

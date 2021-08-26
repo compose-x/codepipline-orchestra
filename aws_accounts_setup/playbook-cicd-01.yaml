@@ -7,6 +7,7 @@
   tasks:
     - name: Create KMS Key Stack
       amazon.aws.cloudformation:
+        profile: "{{ cicd_account_profile }}"
         stack_name: "cicd--kms-key"
         state: "present"
         disable_rollback: true
@@ -24,6 +25,7 @@
 
     - name: Create S3 Bucket
       amazon.aws.cloudformation:
+        profile: "{{ cicd_account_profile }}"
         stack_name: "cicd--buckets"
         state: "present"
         disable_rollback: true
@@ -38,5 +40,50 @@
           Usage: CICD-KMS
       register: cicd_buckets_stack
 
-    - name: KMS Key created
+    - name: Buckets output
       debug: msg="{{ cicd_buckets_stack.stack_outputs }}"
+
+    - name: Create NonProd IAM Roles
+      amazon.aws.cloudformation:
+        profile: "{{ nonprod_account_profile }}"
+        stack_name: "cicd--iam-roles"
+        state: "present"
+        disable_rollback: false
+        termination_protection: false
+        capabilities:
+          - CAPABILITY_IAM
+        template: "templates/cicd_iam_roles.template"
+        template_parameters:
+          CICDAccountId: "{{ cicd_account_id }}"
+          KmsKeyArn: "{{ kms_key_stack.stack_outputs.KmsKeyArnMgmt }}"
+          ArtifactsBucketArn: "{{ cicd_buckets_stack.stack_outputs.ArtifactsBucketArn }}"
+          CloudformationTemplatesBucketArn: "{{ cicd_buckets_stack.stack_outputs.CloudformationTemplatesBucketArn }}"
+        tags:
+          Usage: CICD-IAM-Roles
+      register: nonprod_iam_roles_stack
+
+    - name: NonProd IAM Roles
+      debug: msg="{{ nonprod_iam_roles_stack.stack_outputs }}"
+
+    - name: Create Prod IAM Roles
+      amazon.aws.cloudformation:
+        profile: "{{ prod_account_profile }}"
+        stack_name: "cicd--iam-roles"
+        state: "present"
+        disable_rollback: false
+        termination_protection: false
+        capabilities:
+          - CAPABILITY_IAM
+        template: "templates/cicd_iam_roles.template"
+        template_parameters:
+          CICDAccountId: "{{ cicd_account_id }}"
+          KmsKeyArn: "{{ kms_key_stack.stack_outputs.KmsKeyArnMgmt }}"
+          ArtifactsBucketArn: "{{ cicd_buckets_stack.stack_outputs.ArtifactsBucketArn }}"
+          CloudformationTemplatesBucketArn: "{{ cicd_buckets_stack.stack_outputs.CloudformationTemplatesBucketArn }}"
+        tags:
+          Usage: CICD-IAM-Roles
+      register: prod_iam_roles_stack
+
+    - name: Prod IAM Roles
+      debug: msg="{{ prod_iam_roles_stack.stack_outputs }}"
+

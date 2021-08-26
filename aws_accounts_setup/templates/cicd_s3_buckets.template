@@ -359,7 +359,7 @@ Outputs:
     Value: !Ref ArtifactsBucket
     Export:
       Name: 'CICD::Bucket::Artifacts::Name'
-  ArtifactsTemplatesBucketArn:
+  ArtifactsBucketArn:
     Value: !Sub 'arn:${AWS::Partition}:s3:::${ArtifactsBucket}'
     Export:
       Name: "CICD::Bucket::Artifacts::Arn"
