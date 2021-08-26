@@ -64,7 +64,7 @@ For the rest of the guide through, when refering to AWS accounts, we will use th
 
 * 111111111111 - cicd management
 * 222222222222 - non-prod
-# 777777777777 - prod
+* 777777777777 - prod
 
 
 Setup our artifacts store and IAM access
