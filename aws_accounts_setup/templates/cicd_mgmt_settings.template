@@ -1,0 +1,199 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Template to put into SSM parameters the AWS Account settings for NonProd and Prod
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Non Production account settings
+        Parameters:
+          - NonProdAccountId
+          - NonProdAccountCfnRoleArn
+          - NonProdAccountPipelineRoleArn
+          - NonProdAccountPipelineRoleId
+          - NonProdAccountCfnRoleId
+          - NonProdAccountReadOnlyRoleArn
+      - Label:
+          default: Production account settings
+        Parameters:
+          - ProdAccountId
+          - ProdAccountCfnRoleArn
+          - ProdAccountPipelineRoleArn
+          - ProdAccountPipelineRoleId
+          - ProdAccountCfnRoleId
+          - ProdAccountReadOnlyRoleArn
+      - Label:
+          default: Default settings. Do not change.
+        Parameters:
+          - SsmParameterPrefixShared
+
+Parameters:
+  NonProdAccountId:
+    Type: String
+    AllowedPattern: '[0-9]{12}'
+
+  NonProdAccountCfnRoleArn:
+    Type: String
+    AllowedPattern: '^(arn:aws:iam::[0-9]{12}:role\/[a-zA-Z0-9-_\/.]+)$'
+
+  NonProdAccountPipelineRoleArn:
+    Type: String
+    AllowedPattern: '^(arn:aws:iam::[0-9]{12}:role\/[a-zA-Z0-9-_\/.]+)$'
+
+  NonProdAccountPipelineRoleId:
+    Type: String
+    AllowedPattern: "[A-Z0-9]+"
+
+  NonProdAccountCfnRoleId:
+    Type: String
+    AllowedPattern: "[A-Z0-9]+"
+
+  NonProdAccountReadOnlyRoleArn:
+    Type: String
+    AllowedPattern: '^(arn:aws:iam::[0-9]{12}:role\/[\S]+)$'
+
+  ProdAccountId:
+    Type: String
+    AllowedPattern: '[0-9]{12}'
+
+  ProdAccountCfnRoleArn:
+    Type: String
+    AllowedPattern: '^(arn:aws:iam::[0-9]{12}:role\/[a-zA-Z0-9-_\/.]+)$'
+
+  ProdAccountPipelineRoleArn:
+    Type: String
+    AllowedPattern: '^(arn:aws:iam::[0-9]{12}:role\/[a-zA-Z0-9-_\/.]+)$'
+
+  ProdAccountPipelineRoleId:
+    Type: String
+
+  ProdAccountCfnRoleId:
+    Type: String
+
+  ProdAccountReadOnlyRoleArn:
+    Type: String
+    AllowedPattern: '^(arn:aws:iam::[0-9]{12}:role\/[\S]+)$'
+
+  SsmParameterPrefixShared:
+    Type: String
+    Default: /cicd/artifacts
+
+Resources:
+  SsmNonProdAccountId:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '${SsmParameterPrefixShared}/accounts/nonprod/account/id'
+      Value: !Ref NonProdAccountId
+      Type: String
+
+  SsmNonProdAccountCfnRoleArn:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '${SsmParameterPrefixShared}/accounts/nonprod/cloudformation/role/arn'
+      Value: !Ref NonProdAccountCfnRoleArn
+      Type: String
+
+  SsmNonProdAccountPipelineRoleArn:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '${SsmParameterPrefixShared}/accounts/nonprod/codepipeline/role/arn'
+      Value: !Ref NonProdAccountPipelineRoleArn
+      Type: String
+
+  SsmNonProdAccountCfnRoleId:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '${SsmParameterPrefixShared}/accounts/nonprod/cloudformation/role/id'
+      Value: !Ref NonProdAccountCfnRoleId
+      Type: String
+
+  SsmNonProdAccountPipelineRoleId:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '${SsmParameterPrefixShared}/accounts/nonprod/codepipeline/role/id'
+      Value: !Ref NonProdAccountPipelineRoleId
+      Type: String
+
+  SsmProdAccountId:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '${SsmParameterPrefixShared}/accounts/prod/account/id'
+      Value: !Ref ProdAccountId
+      Type: String
+
+  SsmProdAccountCfnRoleArn:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '${SsmParameterPrefixShared}/accounts/prod/cloudformation/role/arn'
+      Value: !Ref ProdAccountCfnRoleArn
+      Type: String
+
+  SsmProdAccountPipelineRoleArn:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '${SsmParameterPrefixShared}/accounts/prod/codepipeline/role/arn'
+      Value: !Ref ProdAccountPipelineRoleArn
+      Type: String
+
+  SsmProdAccountCfnRoleId:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '${SsmParameterPrefixShared}/accounts/prod/cloudformation/role/id'
+      Value: !Ref ProdAccountCfnRoleId
+      Type: String
+
+  SsmProdAccountPipelineRoleId:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '${SsmParameterPrefixShared}/accounts/prod/codepipeline/role/id'
+      Value: !Ref ProdAccountPipelineRoleId
+      Type: String
+
+Outputs:
+  ProdAccountId:
+    Value: !Ref ProdAccountId
+    Export:
+      Name: "AWS::Account::Prod::Id"
+
+  NonProdAccountId:
+    Value: !Ref NonProdAccountId
+    Export:
+      Name: "AWS::Account::NonProd::Id"
+
+  ProdAccountCfnRoleId:
+    Value: !Ref ProdAccountCfnRoleId
+    Export:
+      Name: !Sub 'CICD::prod::Cfn::Role::Id'
+
+  NonProdAccountCfnRoleId:
+    Value: !Ref NonProdAccountCfnRoleId
+    Export:
+      Name: !Sub 'CICD::nonprod::Cfn::Role::Id'
+
+  ProdAccountCfnRoleArn:
+    Value: !Ref ProdAccountCfnRoleArn
+    Export:
+      Name: !Sub 'CICD::prod::Cfn::Role::Arn'
+
+  NonProdAccountCfnRoleArn:
+    Value: !Ref NonProdAccountCfnRoleArn
+    Export:
+      Name: !Sub 'CICD::nonprod::Cfn::Role::Arn'
+
+  ProdAccountReadOnlyRoleArn:
+    Value: !Ref ProdAccountReadOnlyRoleArn
+    Export:
+      Name: !Sub 'CICD::prod::ReadOnly::Role::Arn'
+  NonProdAccountReadOnlyRoleArn:
+    Value: !Ref NonProdAccountReadOnlyRoleArn
+    Export:
+      Name: !Sub 'CICD::nonprod::ReadOnly::Role::Arn'
+
+  ProdAccountPipelineRoleArn:
+    Value: !Ref ProdAccountPipelineRoleArn
+    Export:
+      Name: !Sub 'CICD::prod::Pipeline::Role::Arn'
+  NonProdAccountPipelineRoleArn:
+    Value: !Ref NonProdAccountPipelineRoleArn
+    Export:
+      Name: !Sub 'CICD::nonprod::Pipeline::Role::Arn'

@@ -1,0 +1,80 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  KMS Key for Codepipeline and other shared artifacts across AWS Accounts
+
+Parameters:
+  ProdAccountId:
+    Type: String
+    AllowedPattern: '[0-9]{12}'
+
+  NonProdAccountId:
+    Type: String
+    AllowedPattern: '[0-9]{12}'
+
+  SsmParameterPrefixShared:
+    Type: String
+    Default: /cicd/artifacts
+
+Conditions:
+  ProdIsSelf: !Equals [ !Ref AWS::AccountId, !Ref ProdAccountId ]
+  NonProdIsSelf: !Equals [ !Ref AWS::AccountId, !Ref NonProdAccountId ]
+  ProdAndNonProdAreSelf: !And
+    - !Condition ProdIsSelf
+    - !Condition NonProdIsSelf
+
+Resources:
+  KmsKey:
+    Type: AWS::KMS::Key
+    Properties:
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: "2012-10-17"
+        Id: pipeline-kms-key
+        Statement:
+          - Sid: Allows admin of the key
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action:
+              - "kms:*"
+            Resource:
+              - "*"
+          - Fn::If:
+            - ProdAndNonProdAreSelf
+            - !Ref AWS::NoValue
+            - Sid: AllowKeyAccessFromExternalAccounts
+              Effect: Allow
+              Principal:
+                AWS:
+                  - Fn::If:
+                    - ProdIsSelf
+                    - !Ref AWS::NoValue
+                    - !Sub "arn:aws:iam::${ProdAccountId}:root"
+                  - Fn::If:
+                    - NonProdIsSelf
+                    - !Ref AWS::NoValue
+                    - !Sub "arn:aws:iam::${NonProdAccountId}:root"
+
+              Action:
+                - kms:Encrypt
+                - kms:Decrypt
+                - kms:ReEncrypt*
+                - kms:GenerateDataKey*
+                - kms:DescribeKey
+              Resource:
+                - "*"
+      Tags:
+        - Key: Name
+          Value: !Sub "${SsmParameterPrefixShared}/KMS/${AWS::StackName}"
+
+  KmsAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub 'alias${SsmParameterPrefixShared}/KMS/KeyArn'
+      TargetKeyId: !Ref KmsKey
+
+Outputs:
+  KmsKeyArnMgmt:
+    Value: !GetAtt 'KmsKey.Arn'
+    Export:
+      Name: "CICD::KMS::Key::Arn"
