@@ -52,17 +52,15 @@ Resources:
                 aws:SecureTransport: true
 
   KmsKeyAccessPolicy:
-    Type: AWS::IAM::Policy
+    Type: AWS::IAM::ManagedPolicy
     DependsOn:
       - CloudformationRole
-      - BuildRole
       - CrossAccountRoleForPipeline
     Properties:
-      PolicyName: 'CicdKmsKeyAccess'
+      ManagedPolicyName: !Sub 'cicd-artifacts-${CICDAccountId}-${AWS::StackName}-KmsKeyAccess'
       Roles:
         - !Ref CloudformationRole
         - !Ref CrossAccountRoleForPipeline
-        - !Ref BuildRole
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -77,18 +75,16 @@ Resources:
             Resource:
               - !Ref KmsKeyArn
 
-  S3BucketsReadAccess:
-    Type: AWS::IAM::Policy
+  S3BucketsAccess:
+    Type: AWS::IAM::ManagedPolicy
     DependsOn:
       - CloudformationRole
-      - BuildRole
       - CrossAccountRoleForPipeline
     Properties:
       Roles:
-        - !Ref BuildRole
         - !Ref CloudformationRole
         - !Ref CrossAccountRoleForPipeline
-      PolicyName: S3CicdBucketsReadAccess
+      ManagedPolicyName: !Sub 'cicd-artifacts-${CICDAccountId}-${AWS::StackName}-S3CicdBucketsAccess'
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -102,8 +98,6 @@ Resources:
               - !Ref CloudformationTemplatesBucketArn
           - Sid: RWArtifactsAndTemplates
             Action:
-              - s3:GetObject*
-              - s3:ListBucket
               - s3:GetBucket*
               - s3:PutObject*
             Effect: Allow
@@ -114,6 +108,9 @@ Resources:
   BuildRole:
     # Allows both CodeBuild and Lambda to perform similar actions for pipeline activities
     # But allows some actions ONLY in codebuild.
+    # Recommend to reuse this Role template for newer roles
+    # To make security on access to resources such as secrets better.
+
     Type: AWS::IAM::Role
     Properties:
       PermissionsBoundary: !If

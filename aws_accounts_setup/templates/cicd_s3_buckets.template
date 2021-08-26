@@ -19,13 +19,11 @@ Parameters:
   ProdAccountCfnRoleId:
     Type: String
     Default: none
-  DevAccountPipelineRoleId:
+
+  NonProdAccountPipelineRoleId:
     Type: String
     Default: none
-  DevAccountCfnRoleId:
-    Type: String
-    Default: none
-  DevAccountCodebuildRoleId:
+  NonProdAccountCfnRoleId:
     Type: String
     Default: none
 
@@ -61,17 +59,13 @@ Conditions:
 
   NoDevAccountRoleId:
     Fn::Equals:
-      - !Ref DevAccountPipelineRoleId
+      - !Ref NonProdAccountPipelineRoleId
       - 'none'
 
   NoDevAccountCfnRoleId:
     Fn::Equals:
-      - !Ref DevAccountCfnRoleId
+      - !Ref NonProdAccountCfnRoleId
       - 'none'
-
-  NoNonProdCodebuilRoleCondition: !Equals
-    - !Ref DevAccountCodebuildRoleId
-    - 'none'
 
   ProdPresentCondition: !And
     - !Not
@@ -88,8 +82,6 @@ Conditions:
       - !Condition NoDevAccountRoleId
     - !Not
       - !Condition NoDevAccountCfnRoleId
-    - !Not
-      - !Condition NoNonProdCodebuilRoleCondition
 
   CreateBucketPolicyCondition: !Or
     - !Condition ProdPresentCondition
@@ -106,6 +98,12 @@ Resources:
           - ServerSideEncryptionByDefault:
               KMSMasterKeyID: !ImportValue "CICD::KMS::Key::Arn"
               SSEAlgorithm: aws:kms
+      AccessControl: BucketOwnerFullControl
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: True
+        BlockPublicPolicy: True
+        IgnorePublicAcls: True
+        RestrictPublicBuckets: True
 
   ArtifactsBucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -159,7 +157,7 @@ Resources:
                       - s3:GetBucket*
                     Principal:
                       AWS:
-                        - !Sub "arn:${AWS::Partition}:iam::${NonProdAccountId}:root"
+                        - !Sub "arn:${AWS::Partition}:iam::${ProdAccountId}:root"
                   - Fn::If:
                       - ProdPresentCondition
                       - Effect: Allow
@@ -194,9 +192,8 @@ Resources:
                           - s3:PutObject*
                         Principal:
                           AWS:
-                            - !Ref DevAccountCodebuildRoleId
-                            - !Ref DevAccountCfnRoleId
-                            - !Ref DevAccountPipelineRoleId
+                            - !Ref NonProdAccountCfnRoleId
+                            - !Ref NonProdAccountPipelineRoleId
                       - !Ref "AWS::NoValue"
           - Fn::If:
               - NonProdIsSelf
@@ -220,9 +217,8 @@ Resources:
                           - s3:GetBucket*
                         Principal:
                           AWS:
-                            - !Ref DevAccountCodebuildRoleId
-                            - !Ref DevAccountCfnRoleId
-                            - !Ref DevAccountPipelineRoleId
+                            - !Ref NonProdAccountCfnRoleId
+                            - !Ref NonProdAccountPipelineRoleId
                       - !Ref "AWS::NoValue"
 
   CloudformationTemplatesBucket:
@@ -235,6 +231,12 @@ Resources:
           - ServerSideEncryptionByDefault:
               KMSMasterKeyID: !ImportValue "CICD::KMS::Key::Arn"
               SSEAlgorithm: aws:kms
+      AccessControl: BucketOwnerFullControl
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: True
+        BlockPublicPolicy: True
+        IgnorePublicAcls: True
+        RestrictPublicBuckets: True
 
   CloudFormationBucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -288,7 +290,7 @@ Resources:
                       - s3:GetBucket*
                     Principal:
                       AWS:
-                        - !Sub "arn:${AWS::Partition}:iam::${NonProdAccountId}:root"
+                        - !Sub "arn:${AWS::Partition}:iam::${ProdAccountId}:root"
                   - Fn::If:
                       - ProdPresentCondition
                       - Effect: Allow
@@ -323,9 +325,8 @@ Resources:
                           - s3:PutObject*
                         Principal:
                           AWS:
-                            - !Ref DevAccountCodebuildRoleId
-                            - !Ref DevAccountCfnRoleId
-                            - !Ref DevAccountPipelineRoleId
+                            - !Ref NonProdAccountCfnRoleId
+                            - !Ref NonProdAccountPipelineRoleId
                       - !Ref "AWS::NoValue"
           - Fn::If:
               - NonProdIsSelf
@@ -349,9 +350,8 @@ Resources:
                           - s3:GetBucket*
                         Principal:
                           AWS:
-                            - !Ref DevAccountCodebuildRoleId
-                            - !Ref DevAccountCfnRoleId
-                            - !Ref DevAccountPipelineRoleId
+                            - !Ref NonProdAccountCfnRoleId
+                            - !Ref NonProdAccountPipelineRoleId
                       - !Ref "AWS::NoValue"
 
 Outputs:

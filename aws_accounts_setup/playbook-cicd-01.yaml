@@ -4,7 +4,25 @@
 - name: Initialize CICD resources
   hosts:
     - localhost
+  vars:
+    debug: false
+    use_stricly_roles_access: true
   tasks:
+    - name: Get CICD AWS Account details
+      amazon.aws.aws_caller_info:
+        profile: "{{ cicd_account_profile }}"
+      register: cicd_account_info
+
+    - name: Get NonProd AWS Account details
+      amazon.aws.aws_caller_info:
+        profile: "{{ nonprod_account_profile }}"
+      register: nonprod_account_info
+
+    - name: Get Prod AWS Account details
+      amazon.aws.aws_caller_info:
+        profile: "{{ prod_account_profile }}"
+      register: prod_account_info
+
     - name: Create KMS Key Stack
       amazon.aws.cloudformation:
         profile: "{{ cicd_account_profile }}"
@@ -14,14 +32,11 @@
         termination_protection: true
         template: "templates/cicd_kms_key.template"
         template_parameters:
-          ProdAccountId: "{{ production_account_id }}"
-          NonProdAccountId: "{{ nonprod_account_id }}"
+          ProdAccountId: "{{ prod_account_info.account }}"
+          NonProdAccountId: "{{ nonprod_account_info.account }}"
         tags:
           Usage: CICD-KMS
       register: kms_key_stack
-
-    - name: KMS Key created
-      debug: msg="{{ kms_key_stack.stack_outputs.KmsKeyArnMgmt }}"
 
     - name: Create S3 Bucket
       amazon.aws.cloudformation:
@@ -32,16 +47,13 @@
         termination_protection: false
         template: "templates/cicd_s3_buckets.template"
         template_parameters:
-          ProdAccountId: "{{ production_account_id }}"
-          NonProdAccountId: "{{ nonprod_account_id }}"
+          ProdAccountId: "{{ prod_account_info.account }}"
+          NonProdAccountId: "{{ nonprod_account_info.account }}"
           ArtifactsBucketPrefix: shared-codepipeline
           TemplatesBucketPrefix: shared-cfn-templates
         tags:
           Usage: CICD-KMS
       register: cicd_buckets_stack
-
-    - name: Buckets output
-      debug: msg="{{ cicd_buckets_stack.stack_outputs }}"
 
     - name: Create NonProd IAM Roles
       amazon.aws.cloudformation:
@@ -52,18 +64,16 @@
         termination_protection: false
         capabilities:
           - CAPABILITY_IAM
+          - CAPABILITY_NAMED_IAM
         template: "templates/cicd_iam_roles.template"
         template_parameters:
-          CICDAccountId: "{{ cicd_account_id }}"
+          CICDAccountId: "{{ cicd_account_info.account }}"
           KmsKeyArn: "{{ kms_key_stack.stack_outputs.KmsKeyArnMgmt }}"
           ArtifactsBucketArn: "{{ cicd_buckets_stack.stack_outputs.ArtifactsBucketArn }}"
           CloudformationTemplatesBucketArn: "{{ cicd_buckets_stack.stack_outputs.CloudformationTemplatesBucketArn }}"
         tags:
           Usage: CICD-IAM-Roles
       register: nonprod_iam_roles_stack
-
-    - name: NonProd IAM Roles
-      debug: msg="{{ nonprod_iam_roles_stack.stack_outputs }}"
 
     - name: Create Prod IAM Roles
       amazon.aws.cloudformation:
@@ -74,9 +84,10 @@
         termination_protection: false
         capabilities:
           - CAPABILITY_IAM
+          - CAPABILITY_NAMED_IAM
         template: "templates/cicd_iam_roles.template"
         template_parameters:
-          CICDAccountId: "{{ cicd_account_id }}"
+          CICDAccountId: "{{ cicd_account_info.account }}"
           KmsKeyArn: "{{ kms_key_stack.stack_outputs.KmsKeyArnMgmt }}"
           ArtifactsBucketArn: "{{ cicd_buckets_stack.stack_outputs.ArtifactsBucketArn }}"
           CloudformationTemplatesBucketArn: "{{ cicd_buckets_stack.stack_outputs.CloudformationTemplatesBucketArn }}"
@@ -84,6 +95,29 @@
           Usage: CICD-IAM-Roles
       register: prod_iam_roles_stack
 
-    - name: Prod IAM Roles
-      debug: msg="{{ prod_iam_roles_stack.stack_outputs }}"
+    - name: Create cross-accounts Settings IAM Roles for re-use in CICD Account
+      amazon.aws.cloudformation:
+        profile: "{{ cicd_account_profile }}"
+        stack_name: "cicd--crossaccounts-iam-roles"
+        state: "present"
+        disable_rollback: false
+        termination_protection: false
+        template: "templates/cicd_mgmt_settings.template"
+        template_parameters:
+          NonProdAccountId: "{{ nonprod_account_info.account }}"
+          NonProdAccountCfnRoleId: "{{ nonprod_iam_roles_stack.stack_outputs.CfnRoleId }}"
+          NonProdAccountCfnRoleArn: "{{ nonprod_iam_roles_stack.stack_outputs.CfnRoleArn }}"
+          NonProdAccountPipelineRoleArn: "{{ nonprod_iam_roles_stack.stack_outputs.CrossRoleArn }}"
+          NonProdAccountPipelineRoleId: "{{ nonprod_iam_roles_stack.stack_outputs.CrossRoleId }}"
+          NonProdAccountReadOnlyRoleArn: "{{ nonprod_iam_roles_stack.stack_outputs.CrossReadOnlyRoleArn }}"
 
+          ProdAccountId: "{{ prod_account_info.account }}"
+          ProdAccountCfnRoleId: "{{ prod_iam_roles_stack.stack_outputs.CfnRoleId }}"
+          ProdAccountCfnRoleArn: "{{ prod_iam_roles_stack.stack_outputs.CfnRoleArn }}"
+          ProdAccountPipelineRoleArn: "{{ prod_iam_roles_stack.stack_outputs.CrossRoleArn }}"
+          ProdAccountPipelineRoleId: "{{ prod_iam_roles_stack.stack_outputs.CrossRoleId }}"
+          ProdAccountReadOnlyRoleArn: "{{ prod_iam_roles_stack.stack_outputs.CrossReadOnlyRoleArn }}"
+
+        tags:
+          Usage: CICD-CrossAccount-Settings
+      register: cicd_mgmt_settings

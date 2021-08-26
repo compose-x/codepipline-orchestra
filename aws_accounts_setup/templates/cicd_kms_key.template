@@ -15,6 +15,13 @@ Parameters:
     Type: String
     Default: /cicd/artifacts
 
+Conditions:
+  ProdIsSelf: !Equals [ !Ref AWS::AccountId, !Ref ProdAccountId ]
+  NonProdIsSelf: !Equals [ !Ref AWS::AccountId, !Ref NonProdAccountId ]
+  ProdAndNonProdAreSelf: !And
+    - !Condition ProdIsSelf
+    - !Condition NonProdIsSelf
+
 Resources:
   KmsKey:
     Type: AWS::KMS::Key
@@ -32,24 +39,33 @@ Resources:
               - "kms:*"
             Resource:
               - "*"
-          - Sid: AllowKeyAccessFromExternalAccounts
-            Effect: Allow
-            Principal:
-              AWS:
-                - !Sub "arn:aws:iam::${ProdAccountId}:root"
-                - !Sub "arn:aws:iam::${NonProdAccountId}:root"
-            Action:
-              - kms:Encrypt
-              - kms:Decrypt
-              - kms:ReEncrypt*
-              - kms:GenerateDataKey*
-              - kms:DescribeKey
-            Resource:
-              - "*"
+          - Fn::If:
+            - ProdAndNonProdAreSelf
+            - !Ref AWS::NoValue
+            - Sid: AllowKeyAccessFromExternalAccounts
+              Effect: Allow
+              Principal:
+                AWS:
+                  - Fn::If:
+                    - ProdIsSelf
+                    - !Ref AWS::NoValue
+                    - !Sub "arn:aws:iam::${ProdAccountId}:root"
+                  - Fn::If:
+                    - NonProdIsSelf
+                    - !Ref AWS::NoValue
+                    - !Sub "arn:aws:iam::${NonProdAccountId}:root"
+
+              Action:
+                - kms:Encrypt
+                - kms:Decrypt
+                - kms:ReEncrypt*
+                - kms:GenerateDataKey*
+                - kms:DescribeKey
+              Resource:
+                - "*"
       Tags:
         - Key: Name
           Value: !Sub "${SsmParameterPrefixShared}/KMS/${AWS::StackName}"
-
 
   KmsAlias:
     Type: AWS::KMS::Alias
