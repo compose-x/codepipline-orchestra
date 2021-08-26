@@ -1,0 +1,42 @@
+---
+# Simple PlayBook to create the initial stacks for CICD
+
+- name: Initialize CICD resources
+  hosts:
+    - localhost
+  tasks:
+    - name: Create KMS Key Stack
+      amazon.aws.cloudformation:
+        stack_name: "cicd--kms-key"
+        state: "present"
+        disable_rollback: true
+        termination_protection: true
+        template: "templates/cicd_kms_key.template"
+        template_parameters:
+          ProdAccountId: "{{ production_account_id }}"
+          NonProdAccountId: "{{ nonprod_account_id }}"
+        tags:
+          Usage: CICD-KMS
+      register: kms_key_stack
+
+    - name: KMS Key created
+      debug: msg="{{ kms_key_stack.stack_outputs.KmsKeyArnMgmt }}"
+
+    - name: Create S3 Bucket
+      amazon.aws.cloudformation:
+        stack_name: "cicd--buckets"
+        state: "present"
+        disable_rollback: true
+        termination_protection: false
+        template: "templates/cicd_s3_buckets.template"
+        template_parameters:
+          ProdAccountId: "{{ production_account_id }}"
+          NonProdAccountId: "{{ nonprod_account_id }}"
+          ArtifactsBucketPrefix: shared-codepipeline
+          TemplatesBucketPrefix: shared-cfn-templates
+        tags:
+          Usage: CICD-KMS
+      register: cicd_buckets_stack
+
+    - name: KMS Key created
+      debug: msg="{{ cicd_buckets_stack.stack_outputs }}"
