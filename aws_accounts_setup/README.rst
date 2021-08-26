@@ -153,7 +153,6 @@ Use the commands below to install and run ansible.
     Change the profile names with the appropriate AWS profile names configured in ~/.aws/config (or ~/.aws/credentials)
 
 .. code-block:: bash
-    :caption: Use ansible to create all the CICD stacks from templates in one command.
 
     python -m venv venv
     source venv/bin/activate
