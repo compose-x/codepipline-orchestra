@@ -1,6 +1,6 @@
-=====================================
-CodePipeline Templates
-=====================================
+=================================================
+CodePipeline Setup - mono and multi-accounts
+=================================================
 
 This section provides with CFN templates and Ansible Roles that will allow you to deploy a baseline infrastructure
 to make CodePipeline capable to deploy your applications and resources securely in AWS.
