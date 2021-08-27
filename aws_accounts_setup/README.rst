@@ -176,3 +176,19 @@ Using simple CloudFormation templates and ansible, we have now got a set of IAM 
 we will deploy the applications to, S3 bucket with KMS encryption for our artifacts, and permissions sorted out
 to use them.
 
+Why not use AWS CloudFormation StackSets instead of Ansible?
+----------------------------------------------------------------
+
+StackSets have been introduced in 2017, to use StackSets, one had to set IAM up to allow for stack sets to work,
+but since February 2020, when adding a new account to the organization, a new Service Linked Role is automatically created to make use
+of AWS CFN StackSets, making it easier to use that feature.
+
+Using Ansible for this purpose today allows to work in both worlds regardless. But one could definitely use StackSets
+to deploy the IAM roles into the "children" accounts.
+
+.. seealso::
+
+    `AWS CFN Docs`_ and `announcement`_
+
+.. _AWS CFN Docs: https://docs.aws.amazon.com/organizations/latest/userguide/services-that-can-integrate-cloudformation.html
+.. _announcement: https://aws.amazon.com/blogs/aws/new-use-aws-cloudformation-stacksets-for-multiple-accounts-in-an-aws-organization/
