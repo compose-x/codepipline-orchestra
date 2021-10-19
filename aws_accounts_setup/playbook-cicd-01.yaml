@@ -71,6 +71,7 @@
           KmsKeyArn: "{{ kms_key_stack.stack_outputs.KmsKeyArnMgmt }}"
           ArtifactsBucketArn: "{{ cicd_buckets_stack.stack_outputs.ArtifactsBucketArn }}"
           CloudformationTemplatesBucketArn: "{{ cicd_buckets_stack.stack_outputs.CloudformationTemplatesBucketArn }}"
+          PermissionsBoundary: "{%if nonprod_boundary_policy%}{{nonprod_boundary_policy}}{%else%}none{%endif%}"
         tags:
           Usage: CICD-IAM-Roles
       register: nonprod_iam_roles_stack
@@ -91,6 +92,7 @@
           KmsKeyArn: "{{ kms_key_stack.stack_outputs.KmsKeyArnMgmt }}"
           ArtifactsBucketArn: "{{ cicd_buckets_stack.stack_outputs.ArtifactsBucketArn }}"
           CloudformationTemplatesBucketArn: "{{ cicd_buckets_stack.stack_outputs.CloudformationTemplatesBucketArn }}"
+          PermissionsBoundary: "{%if prod_boundary_policy%}{{prod_boundary_policy}}{%else%}none{%endif%}"
         tags:
           Usage: CICD-IAM-Roles
       register: prod_iam_roles_stack
