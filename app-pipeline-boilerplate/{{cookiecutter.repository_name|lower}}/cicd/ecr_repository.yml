@@ -1,0 +1,77 @@
+---
+# Template for new ECR Repository with retention policy. Allows access from nonprod & prod accounts
+
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Standardized template to create an ECR Repository with remote access for other AWS Accounts to allow pulling images.
+
+Parameters:
+  NonProdAccountId:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /cicd/shared/accounts/nonprod/account/id
+
+  ProdAccountId:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /cicd/shared/accounts/prod/account/id
+
+  RepositoryName:
+    Type: String
+    AllowedPattern: '[\x20-\x7E]+'
+
+Resources:
+  Repository:
+    Type: AWS::ECR::Repository
+    Properties:
+      ImageScanningConfiguration:
+        ScanOnPush: True
+      RepositoryName: !Ref 'RepositoryName'
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+            {
+              "rules": [
+                {
+                  "action": {
+                    "type": "expire"
+                  },
+                  "selection": {
+                    "countType": "imageCountMoreThan",
+                    "countNumber": 10,
+                    "tagStatus": "tagged",
+                    "tagPrefixList": [
+                      "release-"
+                    ]
+                  },
+                  "description": "keep prod images",
+                  "rulePriority": 1
+                },
+                {
+                  "rulePriority": 2,
+                  "description": "all non release",
+                  "selection": {
+                    "tagStatus": "any",
+                    "countType": "sinceImagePushed",
+                    "countUnit": "days",
+                    "countNumber": 31
+                  },
+                  "action": {
+                    "type": "expire"
+                  }
+                }
+              ]
+            }
+      RepositoryPolicyText:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowPullFromAccounts
+            Effect: Allow
+            Principal:
+              AWS:
+                - !Sub arn:${AWS::Partition}:iam::${ProdAccountId}:root
+                - !Sub arn:${AWS::Partition}:iam::${NonProdAccountId}:root
+            Action:
+              - ecr:BatchCheckLayerAvailability
+              - ecr:BatchGetImage
+              - ecr:DescribeImages
+              - ecr:GetAuthorizationToken
+              - ecr:GetDownloadUrlForLayer
+              - ecr:ListImages

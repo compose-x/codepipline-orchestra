@@ -1,0 +1,19 @@
+---
+# Docker compose override file for AWS dev environment
+
+version: "3.8"
+services:
+  {{ cookiecutter.app_name }}:
+    deploy:
+      resources:
+        reservations:
+          cpus: "0.5"
+          memory: "256MB"
+
+x-tags:
+  environment: ${ENV_NAME:-production}
+
+x-cluster:
+  Lookup:
+    RoleArn: ${PROD_RO_ROLE_ARN}
+    ClusterName: ${ENV_NAME:-production}

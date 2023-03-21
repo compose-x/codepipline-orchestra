@@ -1,0 +1,58 @@
+---
+# Buildspec for {{ cookiecutter.app_name }} image creation and CFN templates.
+
+version: 0.2
+env:
+  shell: /bin/bash
+
+phases:
+  install:
+    commands:
+      - if [ -z ${AWS_ACCOUNT_ID+x} ]; then AWS_ACCOUNT_ID=$(aws sts get-caller-identity | jq -r .Account); fi
+      - REGISTRY_URI=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION:-$AWS_DEFAULT_REGION}.amazonaws.com/
+      - (pip --version && pip install pip -U) || curl https://bootstrap.pypa.io/get-pip.py | python
+      - pip install docker-compose
+      - pip install "ecs_composex>=0.22"
+      - pip install ecs_composex[ecrscan]
+
+  pre_build:
+    commands:
+      - echo Login to own ECR registry
+      - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin ${REGISTRY_URI}
+
+      - COMMIT_HASH=${CODEBUILD_RESOLVED_SOURCE_VERSION::7}
+      - EPOCH=`date +'%s'`
+      - IMAGE_TAG=${COMMIT_HASH:=$EPOCH}
+      - echo Docker repository $REGISTRY_URI
+      - echo Docker image tag $IMAGE_TAG
+
+  build:
+    commands:
+{% if cookiecutter.runtime == "java" %}
+      - mvn clean install -ntp
+      - JAR_FILE=`find target/ -name "*.jar"`
+{% endif %}
+      - docker-compose build
+      - docker-compose push
+      - |
+          if [ -d outputs ]; ;  find outputs -type f -print -delete ; fi
+      - |
+          ecs-compose-x create -n ${DEPLOYMENT_NAME:-{{ cookiecutter.app_name }}} \
+            --format yaml -b ${CFN_TPL_BUCKET} -d outputs/nonprod/ \
+            -f docker-compose.yaml -f envs/nonprod.yml
+      - |
+          ecs-compose-x create -n ${DEPLOYMENT_NAME:-{{ cookiecutter.app_name }}} \
+            --format yaml -b ${CFN_TPL_BUCKET} -d outputs/prod/ \
+            -f docker-compose.yaml -f envs/prod.yml
+      - compose-x-render -f docker-compose.yaml -f envs/prod.yml --services-images-json -o outputs/services_images.json
+artifacts:
+  files:
+    - "**/*"
+  discard-paths: no
+  base-directory: "outputs"
+
+{% if cookiecutter.runtime == "java" %}
+cache:
+  paths:
+    - "/root/.m2/**/*"
+{% endif %}

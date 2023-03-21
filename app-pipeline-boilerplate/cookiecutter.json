@@ -1,0 +1,13 @@
+{
+  "app_name": "my-new-app",
+  "team_code": "johnpreston",
+  "github_org": "https://github.com/compose-x",
+  "repository_name": "{{cookiecutter.team_code}}-{{ cookiecutter.app_name }}",
+  "codestar_connection_id": "arn_of_codestar_connection_id",
+  "short_description": "Short description",
+  "runtime": [
+    "java",
+    "python",
+    "else"
+  ]
+}
