@@ -96,7 +96,7 @@ Resources:
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
-              KMSMasterKeyID: !ImportValue "CICD::KMS::Key::Arn"
+              KMSMasterKeyID: !ImportValue "CICD::mgmt::KMS::Key::Arn"
               SSEAlgorithm: aws:kms
       AccessControl: BucketOwnerFullControl
       PublicAccessBlockConfiguration:
@@ -229,7 +229,7 @@ Resources:
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
-              KMSMasterKeyID: !ImportValue "CICD::KMS::Key::Arn"
+              KMSMasterKeyID: !ImportValue "CICD::mgmt::KMS::Key::Arn"
               SSEAlgorithm: aws:kms
       AccessControl: BucketOwnerFullControl
       PublicAccessBlockConfiguration:
@@ -358,18 +358,18 @@ Outputs:
   ArtifactsBucket:
     Value: !Ref ArtifactsBucket
     Export:
-      Name: 'CICD::Bucket::Artifacts::Name'
+      Name: 'CICD::mgmt::Bucket::Artifacts::Name'
   ArtifactsBucketArn:
     Value: !Sub 'arn:${AWS::Partition}:s3:::${ArtifactsBucket}'
     Export:
-      Name: "CICD::Bucket::Artifacts::Arn"
+      Name: "CICD::mgmt::Bucket::Artifacts::Arn"
 
   CloudformationTemplatesBucket:
     Value: !Ref CloudformationTemplatesBucket
     Export:
-      Name: "CICD::Bucket::CfnTemplates::Name"
+      Name: "CICD::mgmt::Bucket::CfnTemplates::Name"
 
   CloudformationTemplatesBucketArn:
     Value: !Sub 'arn:${AWS::Partition}:s3:::${CloudformationTemplatesBucket}'
     Export:
-      Name: "CICD::Bucket::CfnTemplates::Arn"
+      Name: "CICD::mgmt::Bucket::CfnTemplates::Arn"
